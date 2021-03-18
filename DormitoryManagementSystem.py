@@ -14,6 +14,7 @@
 """
 import json
 
+# 系统主菜单选项宏
 RECORD_INFO = 1
 DELETE_INFO = 2
 FIND_INFO = 3
@@ -21,6 +22,7 @@ SHOW_INFO = 4
 CHANGE_ROOM = 5
 QUIT_SYSTEM = 0
 
+# 学生信息打印的统一开头
 print_info = '''
 ========================================
 学号\t\t姓名\t\t性别\t\t年龄\t\t寝室号
@@ -29,24 +31,30 @@ print_info = '''
 
 # 加载json文件中的学生信息
 def load_json_file():
-    with open("information.json", "r", encoding='utf-8') as file:
+    with open("information.json", "r", encoding='utf-8') as file:       # 加载保存json文件的编码都为utf-8
         return json.load(file)      # 将导入的学生信息返回到全局变量student_info_dict（字典类型）
 
 
 # 将学生信息保存在json文件
 def save_json_file():
     with open("information.json", "w", encoding='utf-8') as file:
-        json.dump(student_info_dict, file, ensure_ascii=False)  # 传入文件描述符，和dumps一样的结果
+        json.dump(room_info_dict, file, ensure_ascii=False)  # 传入文件描述符，和dumps一样的结果，关闭默认以ASCII码存入json
 
 
-# 加载寝室基本信息并录入原有的寝室分配方案
-def load_existing_room_info():
-    for n in ("100", "101", "102", "200", "201", "202"):        # 录入寝室基础信息
-        room_info_dict[n] = {'room_id': n, 'count': 0, 'people': []}
-
-    for i in student_info_dict.values():        # 录入原有寝室分配方案
-        room_info_dict[i["room"]]["people"].append(i)
-        room_info_dict[i["room"]]["count"] += 1
+# 查询学生学号信息
+def query_student_id(query_id, mode):
+    for i in room_info_dict.values():
+        for j in i["student"]:
+            if query_id == j["student_id"]:
+                if mode == 1:
+                    return 1
+                elif mode == 2:
+                    i["student"].pop(i["student"].index(j))  # 删除寝室字典里面的该生信息
+                    i["count"] -= 1
+                    return 1
+                else:
+                    return i["student"][i["student"].index(j)]      # 按学号搜索学生的学生信息
+    return 0
 
 
 # 录入学生信息
@@ -59,7 +67,7 @@ def record_student_info():
         try:
             if not int(new_id):  # 学号输入为空或者为0
                 new_id = input("您并未输入学生学号或者输入学号是0，请输入学生学号:\n")
-            elif str(int(new_id)) in student_info_dict:      # 学号是否唯一
+            elif query_student_id(str(int(new_id)), 1):      # 学号是否唯一
                 new_id = input("您输入的学号已存在(提示：有效数字之前的零无效)，请重新输入:\n")
             else:
                 new_student_info["student_id"] = new_id
@@ -85,33 +93,49 @@ def record_student_info():
         new_age = int(input("您输入的年龄不合法，请重新输入，范围(6-48):\n"))
     new_student_info["age"] = new_age
 
-    student_info_dict[new_id] = new_student_info
-    print("录入成功，请为其分配寝室")
-    print(student_info_dict)
-    return new_id
+    if new_student_info["sex"] == "男":      # 提前用k值标识性别，方便后面为其分配对应的寝室
+        k = 0       # k = 0为男生
+    else:
+        k = 1       # k = 1为女生
+    while True:
+        info = """========================寝室分配============================
+        1.自动分配
+        2.手动分配
+        """
+        print(info)
+        choice1 = input("请选择你需要进行的操作:\n")
+        if choice1 == "1":      # 自动分配
+            for i in (100 + 100*k, 101 + 100*k, 102 + 100*k):
+                i = str(i)
+                if concreteness_allot_step(room_info_dict[i], new_student_info, i):
+                    break
+            break
+
+        elif choice1 == "2":        # 手动分配
+            room_id = input("请输入要分配的寝室号:\n")
+            while int(room_id) not in (100 + 100*k, 101 + 100*k, 102 + 100*k):
+                room_id = input("您输入的寝室号不符合规定，请重新输入:\n")
+            while not concreteness_allot_step(room_info_dict[room_id], new_student_info, room_id):
+                room_id = input("您输入的寝室号对应的寝室已住满，请重新输入:\n")
+            break
+
+        else:
+            print("请按照提示输入正确的数字:\n")
+
+    save_json_file()
+    print("新增学生信息录入成功")
 
 
 # 删除学生信息
 def delete_student_info():
     delete_id = input("请输入要删除学生的学号:\n")
-    while delete_id not in student_info_dict:  # 判断输入的学号是否存在
+    while not query_student_id(delete_id, 1):  # 判断输入的学号是否存在
         delete_id = input("您输入的学生学号不存在，请重新输入:\n")
 
-    delete_room = student_info_dict[delete_id]["room"]      # 提取删除学生的寝室号
-    if delete_room:  # 判断该生原来是否有宿舍
-        room_info_dict[delete_room]["people"].remove(student_info_dict[delete_id])      # 删除寝室字典里面的该生信息
-        room_info_dict[delete_room]["count"] -= 1
+    query_student_id(delete_id, 2)      # 删除寝室字典里面的该生信息
 
-    del student_info_dict[delete_id]        # 删除学生字典里面的该生信息
+    save_json_file()
     print("已删除学号{}的学生信息".format(delete_id))
-
-
-# 显示学生信息
-def show_student_info():
-    print("按学号显示学生信息:", end="")
-    print(print_info)
-    for i in student_info_dict.values():  # 打印输出这个字典的值
-        print("{}\t\t{}\t\t{}\t\t{}\t\t{}".format(i["student_id"], i["name"], i["sex"], i["age"], i["room"]))
 
 
 # 显示寝室信息
@@ -120,19 +144,20 @@ def show_room_info():
     print(print_info)
     for i in room_info_dict:
         print("{}号寝室，人员如下:".format(i))
-        for j in room_info_dict[i]["people"]:
+        for j in room_info_dict[i]["student"]:
             print("{}\t\t{}\t\t{}\t\t{}\t\t{}" .format(j["student_id"], j["name"], j["sex"], j["age"], j["room"]))
 
 
 # 搜索学生信息
 def find_student_info():
     find_id = input("请你输入想要查找的学号:\n")
-    if find_id in student_info_dict:
-        find_info = student_info_dict[find_id]
-        print("{}号学生信息如下:".format(find_info), end="")
+    find_info = query_student_id(find_id, 3)
+    if find_info:
+        print("{}号学生信息如下:".format(find_id), end="")
         print(print_info)
         print("{}\t\t{}\t\t{}\t\t{}\t\t{}"
-              .format(find_info["student_id"], find_info["name"], find_info["sex"], find_info["age"], find_info["room"]))
+              .format(find_info["student_id"],
+                      find_info["name"], find_info["sex"], find_info["age"], find_info["room"]))
     else:
         print("系统未录入此学号的学生")
 
@@ -140,74 +165,47 @@ def find_student_info():
 # 具体分配步骤
 def concreteness_allot_step(room_info, student_info, room_id):
     if room_info["count"] < 4:      # 判断寝室是否未住满
-        room_info["people"].append(student_info)        # 将学生信息添加到寝室信息字典中
-        room_info["count"] += 1
         student_info["room"] = room_id      # 在学生个人信息中备注其寝室号
+        room_info["student"].append(student_info)        # 将学生信息添加到寝室信息字典中
+        room_info["count"] += 1
         print("分配成功")
         return True
     else:
         return False
 
 
-# 分配学生宿舍
-def allot_student_room(new_id, mode):       # 可将新录入的学生自动分配到空余寝室，或者根据手动分配要求为学生分配寝室
-    if mode == "1":     # 自动分配模式
-        if student_info_dict[new_id]["sex"] == "男":
-            for i in (100, 101, 102):
-                if concreteness_allot_step(room_info_dict[i], student_info_dict[new_id], i):
-                    break
-        else:
-            for i in (200, 201, 202):
-                if concreteness_allot_step(room_info_dict[i], student_info_dict[new_id], i):
-                    break
-
-    elif mode == "2":       # 手动分配模式
-        room_id = input("请输入要分配的寝室号:\n")
-        if student_info_dict[new_id]["sex"] == "男":
-            while int(room_id) not in (100, 101, 102):
-                room_id = input("您输入的寝室号不符合规定，请重新输入:\n")
-            while not concreteness_allot_step(room_info_dict[room_id], student_info_dict[new_id], room_id):
-                room_id = input("您输入的寝室号对应的寝室已住满，请重新输入:\n")
-
-        else:
-            while int(room_id) not in (200, 201, 202):
-                room_id = input("您输入的寝室号不符合规定，请重新输入:\n")
-            while not concreteness_allot_step(room_info_dict[room_id], student_info_dict[new_id], room_id):
-                room_id = input("您输入的寝室号对应的寝室已住满，请重新输入:\n")
-
-
 # 调整学生宿舍
 def change_student_room():      # 可将学生调整到空余寝室，或者和其他学生互换寝室
     change_id = input("请输入要调整学生的学号:\n")     # 输入调整学生的学号
-    while change_id not in student_info_dict:  # 判断此学号对应的学生信息是否存在
+    while not query_student_id(change_id, 1):      # 判断输入的学号是否存在
         change_id = input("您输入学号不存在，请查证后再输:\n")
 
     change_room = input("请输入要调整的寝室号:\n")
-    if student_info_dict[change_id]["sex"] == "男":
-        k = 0
+    change_info = query_student_id(change_id, 3)
+    if change_info["sex"] == "男":      # 用k值标识性别，方便后面为其分配对应的寝室
+        k = 0       # k = 0为男
     else:
         k = 1
+
     while int(change_room) not in (100 + 100*k, 101 + 100*k, 102 + 100*k):
         change_room = input("您输入的寝室号不符合规定，请重新输入寝室号:\n")
-    if not concreteness_allot_step(room_info_dict[change_room], student_info_dict[change_id], change_room):
+    query_student_id(change_id, 2)
+    if not concreteness_allot_step(room_info_dict[change_room], change_info, change_room):
         print("{}号寝室已满，人员如下:".format(change_room))
         print(print_info)
-        for j in room_info_dict[change_room]["people"]:
-            print("{}\t\t{}\t\t{}\t\t{}\t\t{}".format(j["room_id"], j["name"], j["sex"], j["age"], j["room"]))
+        for j in room_info_dict[change_room]["student"]:
+            print("{}\t\t{}\t\t{}\t\t{}\t\t{}".format(j["student_id"], j["name"], j["sex"], j["age"], j["room"]))
 
         if 'y' == input("是否交换宿舍(y/n)"):
             another_change_id = input("请输入与之交换寝室的学生学号")
+            another_change_info = query_student_id(another_change_id, 3)        # 获取被交换学生的信息
+            another_change_room = change_info["room"]       # 交换学生原有宿舍
 
-            # 删除调整生原有宿舍信息
-            room_info_dict[student_info_dict[change_id]["room"]]["people"].remove(student_info_dict[change_id])
-            room_info_dict[change_room]["people"].remove(student_info_dict[another_change_id])
-
-            # 为被交换生指定宿舍的相应信息
-            room_info_dict[change_room]["people"].append(student_info_dict[change_id])
-            room_info_dict[student_info_dict[change_id]["room"]]["people"]\
-                .append(student_info_dict[another_change_id])
-            student_info_dict[another_change_id]["room"] = student_info_dict[another_change_id]["room"]
-            student_info_dict[change_id]["room"] = change_room
+            # 更新被交换学生宿舍信息
+            concreteness_allot_step(room_info_dict[another_change_room], another_change_info, another_change_room)
+            query_student_id(another_change_id, 2)
+            # 更新交换学生宿舍信息
+            concreteness_allot_step(room_info_dict[change_room], change_info, change_room)
             print("调整学生寝室成功")
 
 
@@ -227,29 +225,12 @@ def show_menu():
         choice = input("请输入你想进行的操作是:\n")
 
         if int(choice) == RECORD_INFO:        # 1.录入学生信息
-            new_student_id = record_student_info()
-            if new_student_id:
-                while True:
-                    info = """========================寝室分配============================
-                    1.自动分配
-                    2.手动分配
-                    """
-                    print(info)
-                    choice1 = input("请选择你需要进行的操作:\n")
-                    if choice1 == "1":
-                        allot_student_room(new_student_id, choice1)
-                        save_json_file()
-                    elif choice1 == "2":
-                        allot_student_room(new_student_id, choice1)
-                        save_json_file()
-                    else:
-                        print("请按照提示输入正确的数字:\n")
-                    print("按enter键继续...")
-                    input()
-                    break
+            record_student_info()
+            print("按enter键继续...")
+            input()
+            continue
         elif int(choice) == DELETE_INFO:      # 2.删除学生信息
             delete_student_info()
-            save_json_file()
             print("按enter键继续...")
             input()
             continue
@@ -259,22 +240,7 @@ def show_menu():
             input()
             continue
         elif int(choice) == SHOW_INFO:      # 4.显示学生信息
-            while True:
-                info = """========================学生信息============================
-                1.按学号显示
-                2.按寝室显示
-                """
-                print(info)
-                choice1 = input("请选择你需要进行的操作:\n")
-                if choice1 == "1":
-                    show_student_info()
-                    break
-                elif choice1 == "2":
-                    show_room_info()
-                    break
-                else:
-                    print("请按照提示输入正确的数字:\n")
-                    continue
+            show_room_info()
             print("按enter键继续...")
             input()
             continue
@@ -292,9 +258,8 @@ def show_menu():
 
 
 if __name__ == "__main__":
-    student_info_dict = load_json_file()        # 加载json文件的学生信息到字典中
-    room_info_dict = {}
-    load_existing_room_info()       # 加载原有的寝室分配方案到字典room_info_dict中
+    student_info_dict = {}
+    room_info_dict = load_json_file()        # 加载json文件的学生信息到字典中
 
     show_menu()     # 显示系统主菜单，并在其中循环
 
