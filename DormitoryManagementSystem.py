@@ -41,7 +41,7 @@ def save_json_file():
         json.dump(room_info_dict, file, ensure_ascii=False)  # 传入文件描述符，和dumps一样的结果，关闭默认以ASCII码存入json
 
 
-# 查询学生学号信息
+# 根据学号遍历、调整学生信息
 def query_student_id(query_id, mode):
     for i in room_info_dict.values():
         for j in i["student"]:
@@ -206,7 +206,9 @@ def change_student_room():      # 可将学生调整到空余寝室，或者和�
             query_student_id(another_change_id, 2)
             # 更新交换学生宿舍信息
             concreteness_allot_step(room_info_dict[change_room], change_info, change_room)
-            print("调整学生寝室成功")
+
+    save_json_file()
+    print("调整学生寝室成功")
 
 
 # 系统功能菜单
@@ -246,7 +248,6 @@ def show_menu():
             continue
         elif int(choice) == CHANGE_ROOM:      # 5.调整学生宿舍
             change_student_room()
-            save_json_file()
             print("按enter键继续...")
             input()
             continue
